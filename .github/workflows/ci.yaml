@@ -2,9 +2,11 @@ name: MonoKickstart Ci
 on: [push]
 jobs:
   build:
-    
+    strategy:
+      matrix:
+        os: [ubuntu-20.04, macos-13, macos-14]
     name: Steam Runtime
-    runs-on: ubuntu-20.04
+    runs-on: ${{ matrix.os }}
     container: registry.gitlab.steamos.cloud/steamrt/sniper/sdk:beta
     steps:
       - uses: actions/checkout@v4
@@ -13,8 +15,13 @@ jobs:
             path: monokickstart
 
       - name: Install Depdencies
+        if: runner.os == 'Linux'
         run: sudo apt update && sudo apt install libgif-dev autoconf libtool automake build-essential gettext libglib2.0-dev libcairo2-dev libtiff-dev libexif-dev ninja-build mono-complete -y
-
+      
+      - name: Install Depdencies
+        if: runner.os == 'macOS'
+        run: brew install glib cairo libexif libjpeg giflib libtiff autoconf libtool automake pango pkg-config cmake ninja && brew link gettext --force
+      
       - name: Build mono
         run: |
             git clone https://gitlab.winehq.org/mono/mono --depth=1 --recursive --shallow-submodules
@@ -29,16 +36,32 @@ jobs:
             make -j${nproc}
             
       - name: Upload libMonoPosixHelper Artifact
+        if: runner.os == 'Linux'
         uses: actions/upload-artifact@v4
         with:
             name: libMonoPosixHelper
             path: mono/support/.libs/libMonoPosixHelper.so
-
+            
+      - name: Upload libMonoPosixHelper Artifact
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+            name: libMonoPosixHelper
+            path: mono/support/.libs/libMonoPosixHelper.dylib
+            
       - name: Upload net_4_x-linux Artifact
+        if: runner.os == 'Linux'
         uses: actions/upload-artifact@v4
         with:
             name: net_4_x-linux
             path: mono/mcs/class/lib/net_4_x-linux/
+
+      - name: Upload net_4_x-macOS Artifact
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+            name: net_4_x-linux
+            path: mono/mcs/class/lib/net_4_x-macos/
 
       - name: Build libgdiplus
         run: |
@@ -46,13 +69,25 @@ jobs:
             cd libgdiplus
             ./autogen.sh
             make -j${nproc}
-            cp src/.libs/libgdiplus.so.0.0.0 ../libgdiplus.so.0
+            if [ "$RUNNER_OS" == "Linux" ]; then
+              cp src/.libs/libgdiplus.so.0.0.0 ../libgdiplus.so.0
+            fi
+        shell: bash
 
       - name: Upload libgdiplus Artifact
         uses: actions/upload-artifact@v4
         with:
             name: libgdiplus
             path: libgdiplus.so.0
+
+            
+      - name: Upload libgdiplus Artifact
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+            name: libgdiplus
+            path: libgdiplus/src/.libs/libgdiplus.*.dylib
+
 
       - name: Build MonoKickstart
         run: |
@@ -84,6 +119,7 @@ jobs:
         with:
             name: kick.bin.x86_64
             path: artifact/*
+            
               
 
       
